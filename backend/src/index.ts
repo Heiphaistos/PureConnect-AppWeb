@@ -37,18 +37,18 @@ const app = Fastify({
 
 await redis.connect()
 
-// Security headers
+// Security headers (disable CSP — managed by Next.js frontend)
 await app.register(helmet, {
-  contentSecurityPolicy: false, // managed by Next.js frontend
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 })
 
-// Global rate limit (fallback)
+// Global rate limit (in-memory — simple and reliable)
 await app.register(rateLimit, {
   global: true,
   max: 200,
   timeWindow: '1 minute',
-  redis,
 })
 
 // CORS: accept comma-separated list of allowed origins
@@ -58,10 +58,12 @@ const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
 
 await app.register(cors, {
   origin: (origin, cb) => {
+    // Allow same-origin requests (no Origin header) and listed origins
     if (!origin || allowedOrigins.includes(origin)) {
       cb(null, true)
     } else {
-      cb(new Error('CORS: origin not allowed'), false)
+      // Reject without error — browser enforces CORS, server returns 200 without CORS headers
+      cb(null, false)
     }
   },
   credentials: true,
