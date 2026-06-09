@@ -12,7 +12,17 @@ interface LoginBody {
 }
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
+  // Strict rate limit on login: 10 attempts / 15 minutes per IP
   app.post<{ Body: LoginBody }>('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '15 minutes',
+        errorResponseBuilder: () => ({
+          error: 'Too many login attempts. Try again in 15 minutes.',
+        }),
+      },
+    },
     schema: {
       body: {
         type: 'object',
@@ -20,6 +30,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           password: { type: 'string', minLength: 1, maxLength: 128 },
         },
+        additionalProperties: false,
       },
     },
   }, async (req, reply) => {
@@ -28,7 +39,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const valid = await bcrypt.compare(password, hash)
     if (!valid) {
-      await new Promise((r) => setTimeout(r, 400)) // timing attack mitigation
+      // Constant-time delay to mitigate timing attacks
+      await new Promise((r) => setTimeout(r, 400 + Math.random() * 200))
       return reply.status(401).send({ error: 'Invalid credentials' })
     }
 
@@ -42,12 +54,15 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     await redis.set(`session:${sessionId}`, JSON.stringify(session), 'EX', SESSION_TTL)
 
-    const token = jwt.sign({ sessionId }, process.env.JWT_SECRET ?? '', { expiresIn: '24h' })
+    const token = jwt.sign({ sessionId }, process.env.JWT_SECRET!, { expiresIn: '24h' })
+
+    // COOKIE_SECURE=true only when HTTPS is active (set in .env)
+    const secureCookie = process.env.COOKIE_SECURE === 'true'
 
     reply
       .setCookie('session', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: secureCookie,
         sameSite: 'lax',
         maxAge: SESSION_TTL,
         path: '/',
@@ -59,7 +74,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const token = req.cookies['session']
     if (token) {
       try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET ?? '') as { sessionId: string }
+        const payload = jwt.verify(token, process.env.JWT_SECRET!) as { sessionId: string }
         await redis.del(`session:${payload.sessionId}`)
       } catch { /* expired token — still clear the cookie */ }
     }
@@ -70,7 +85,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const token = req.cookies['session']
     if (!token) return reply.status(401).send({ error: 'Not authenticated' })
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET ?? '') as { sessionId: string }
+      const payload = jwt.verify(token, process.env.JWT_SECRET!) as { sessionId: string }
       const raw = await redis.get(`session:${payload.sessionId}`)
       if (!raw) return reply.status(401).send({ error: 'Session expired' })
       return reply.send({ authenticated: true, sessionId: payload.sessionId })
