@@ -18,6 +18,11 @@ function toPrometheus(lines: string[]): string {
   return lines.join('\n') + '\n'
 }
 
+// Escape backslash, double-quote, newline per Prometheus text format spec
+function lbl(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').slice(0, 128)
+}
+
 async function pushToVictoriaMetrics(metrics: string): Promise<void> {
   try {
     await fetch(`${VM_URL}/api/v1/import/prometheus`, {
@@ -40,13 +45,13 @@ function buildSystemMetrics(s: SystemStats): string[] {
     `vps_load_1m ${s.cpu.load1} ${ts}`,
   ]
   for (const disk of s.disks) {
-    const labels = `{mount="${disk.mount}",fs="${disk.fs}"}`
+    const labels = `{mount="${lbl(disk.mount)}",fs="${lbl(disk.fs)}"}`
     lines.push(`vps_disk_used_bytes${labels} ${disk.used} ${ts}`)
     lines.push(`vps_disk_size_bytes${labels} ${disk.size} ${ts}`)
     lines.push(`vps_disk_percent${labels} ${disk.percent} ${ts}`)
   }
   for (const net of s.network) {
-    const l = `{iface="${net.iface}"}`
+    const l = `{iface="${lbl(net.iface)}"}`
     lines.push(`vps_net_rx_bytes_total${l} ${net.rx_bytes} ${ts}`)
     lines.push(`vps_net_tx_bytes_total${l} ${net.tx_bytes} ${ts}`)
     lines.push(`vps_net_rx_sec${l} ${net.rx_sec} ${ts}`)
@@ -59,7 +64,7 @@ function buildContainerMetrics(containers: Container[]): string[] {
   const ts = Date.now()
   const lines: string[] = []
   for (const c of containers) {
-    const l = `{name="${c.name}",image="${c.image}",id="${c.shortId}"}`
+    const l = `{name="${lbl(c.name)}",image="${lbl(c.image)}",id="${lbl(c.shortId)}"}`
     lines.push(`docker_cpu_percent${l} ${c.cpuPercent} ${ts}`)
     lines.push(`docker_memory_usage_bytes${l} ${c.memoryUsage} ${ts}`)
     lines.push(`docker_memory_percent${l} ${c.memoryPercent} ${ts}`)
@@ -74,7 +79,7 @@ function buildPm2Metrics(processes: Pm2Process[]): string[] {
   const ts = Date.now()
   const lines: string[] = []
   for (const p of processes) {
-    const l = `{name="${p.name}",pm_id="${p.pm_id}"}`
+    const l = `{name="${lbl(p.name)}",pm_id="${p.pm_id}"}`
     lines.push(`pm2_cpu_percent${l} ${p.cpu} ${ts}`)
     lines.push(`pm2_memory_bytes${l} ${p.memory} ${ts}`)
     lines.push(`pm2_restarts_total${l} ${p.restarts} ${ts}`)

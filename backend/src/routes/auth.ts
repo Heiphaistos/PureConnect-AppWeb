@@ -63,7 +63,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       .setCookie('session', token, {
         httpOnly: true,
         secure: secureCookie,
-        sameSite: 'lax',
+        sameSite: 'strict',
         maxAge: SESSION_TTL,
         path: '/',
       })
@@ -78,10 +78,22 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         await redis.del(`session:${payload.sessionId}`)
       } catch { /* expired token — still clear the cookie */ }
     }
-    reply.clearCookie('session', { path: '/' }).send({ ok: true })
+    const secureCookie = process.env.COOKIE_SECURE === 'true'
+    reply
+      .clearCookie('session', {
+        path: '/',
+        httpOnly: true,
+        secure: secureCookie,
+        sameSite: 'strict',
+      })
+      .send({ ok: true })
   })
 
-  app.get('/me', async (req, reply) => {
+  app.get('/me', {
+    config: {
+      rateLimit: { max: 60, timeWindow: '1 minute' },
+    },
+  }, async (req, reply) => {
     const token = req.cookies['session']
     if (!token) return reply.status(401).send({ error: 'Not authenticated' })
     try {

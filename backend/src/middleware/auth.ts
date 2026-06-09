@@ -8,7 +8,8 @@ const PUBLIC_PATHS = new Set(['/api/auth/login', '/health'])
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (PUBLIC_PATHS.has(req.url)) return
 
-  const token = req.cookies['session'] ?? req.headers.authorization?.replace('Bearer ', '')
+  // Cookie-only auth — no Authorization header fallback (dead code that widens attack surface)
+  const token = req.cookies['session']
   if (!token) {
     reply.status(401).send({ error: 'Unauthorized' })
     return

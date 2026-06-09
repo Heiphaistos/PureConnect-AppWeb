@@ -30,8 +30,6 @@ export interface Pm2Process {
   restarts: number
   uptime: number
   instances: number
-  logFile: string
-  errFile: string
 }
 
 export interface CpuInfo {

@@ -74,6 +74,7 @@ services:
       --save ""
       --appendonly no
       --loglevel warning
+      --requirepass ${REDIS_PASSWORD}
     logging:
       driver: json-file
       options:
@@ -94,7 +95,7 @@ services:
     environment:
       - VM_URL=http://victoriametrics:8428
       - LOKI_URL=http://loki:3100
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - PM2_HOME=/root/.pm2
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

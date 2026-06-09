@@ -6,6 +6,8 @@ export const pm2Routes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireAuth)
 
   app.get('/processes', async (_req, reply) => {
-    return reply.send({ processes: cache.processes, updatedAt: cache.updatedAt })
+    // Strip server-side filesystem paths before sending to client
+    const processes = cache.processes.map(({ logFile: _lf, errFile: _ef, ...p }) => p)
+    return reply.send({ processes, updatedAt: cache.updatedAt })
   })
 }

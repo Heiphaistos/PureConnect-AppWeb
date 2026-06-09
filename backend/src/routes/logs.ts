@@ -23,14 +23,14 @@ async function isAuthenticated(token: string | undefined): Promise<boolean> {
 
 export const logsRoutes: FastifyPluginAsync = async (app) => {
   // Docker container log stream
-  app.get<{ Params: { id: string }; Querystring: { token?: string } }>(
+  app.get<{ Params: { id: string } }>(
     '/logs/docker/:id',
     { websocket: true },
     async (connection: { socket: WebSocket }, req) => {
-      const { token } = req.query
+      // Auth via httpOnly cookie only — never accept token in URL (would appear in logs)
       const cookieToken = req.cookies?.['session']
 
-      if (!(await isAuthenticated(token ?? cookieToken))) {
+      if (!(await isAuthenticated(cookieToken))) {
         connection.socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
         connection.socket.close(1008, 'Unauthorized')
         return
@@ -72,14 +72,13 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
   )
 
   // PM2 process log stream
-  app.get<{ Params: { name: string }; Querystring: { token?: string } }>(
+  app.get<{ Params: { name: string } }>(
     '/logs/pm2/:name',
     { websocket: true },
     async (connection: { socket: WebSocket }, req) => {
-      const { token } = req.query
       const cookieToken = req.cookies?.['session']
 
-      if (!(await isAuthenticated(token ?? cookieToken))) {
+      if (!(await isAuthenticated(cookieToken))) {
         connection.socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
         connection.socket.close(1008, 'Unauthorized')
         return

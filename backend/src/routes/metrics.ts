@@ -59,9 +59,27 @@ export const metricsRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: `Unknown metric. Valid: ${Object.keys(METRIC_QUERIES).join(', ')}` })
     }
 
-    const endTs = end ? Number(end) : Math.floor(Date.now() / 1000)
-    const startTs = start ? Number(start) : endTs - 3600 // default: last 1h
+    const nowSec = Math.floor(Date.now() / 1000)
+    const endTs = end ? Number(end) : nowSec
+    const startTs = start ? Number(start) : endTs - 3600
     const stepVal = step ? Number(step) : 15
+
+    // Bounds: reject NaN/Infinity/negative timestamps, future end, unreasonable ranges
+    if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || !Number.isFinite(stepVal)) {
+      return reply.status(400).send({ error: 'Invalid numeric parameters' })
+    }
+    if (startTs < 0 || endTs < 0 || endTs > nowSec + 5) {
+      return reply.status(400).send({ error: 'Timestamps out of range' })
+    }
+    if (endTs <= startTs) {
+      return reply.status(400).send({ error: 'end must be after start' })
+    }
+    if (endTs - startTs > 7 * 24 * 3600) {
+      return reply.status(400).send({ error: 'Range too large (max 7 days)' })
+    }
+    if (stepVal < 1 || stepVal > 3600) {
+      return reply.status(400).send({ error: 'step must be between 1 and 3600 seconds' })
+    }
 
     try {
       const points = await queryVm(METRIC_QUERIES[metric], startTs, endTs, stepVal)
