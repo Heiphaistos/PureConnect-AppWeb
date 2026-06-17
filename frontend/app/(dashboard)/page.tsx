@@ -89,10 +89,20 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-3">
                   <p className="font-mono text-xs text-text-dim tracking-widest">CHARGE — 1 HEURE</p>
                   <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="font-mono text-[10px] text-text-dim">1min</p>
                       <p className="font-mono text-sm text-cyan-400">{sys.cpu.load1.toFixed(2)}</p>
                     </div>
+                    <div className="text-right">
+                      <p className="font-mono text-[10px] text-text-dim">5min</p>
+                      <p className="font-mono text-sm text-cyan-400/70">{sys.cpu.load5.toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-[10px] text-text-dim">15min</p>
+                      <p className="font-mono text-sm text-cyan-400/50">{sys.cpu.load15.toFixed(2)}</p>
+                    </div>
+                  </div>
                   </div>
                 </div>
                 <LoadBar value={sys.cpu.load1} max={cpuCores} />

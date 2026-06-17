@@ -7,6 +7,22 @@ import fs from 'node:fs'
 
 const SHELL = process.env.SHELL ?? (fs.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
 
+const MAX_MSG_BYTES = 4096
+
+// Whitelist minimale — ne JAMAIS exposer JWT_SECRET / ADMIN_PASSWORD_HASH / REDIS_PASSWORD au terminal
+const PTY_ENV: Record<string, string> = {
+  TERM: 'xterm-256color',
+  COLORTERM: 'truecolor',
+  HOME: '/root',
+  USER: 'root',
+  LOGNAME: 'root',
+  SHELL,
+  PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/node_modules/.bin',
+  PM2_HOME: process.env.PM2_HOME ?? '/root/.pm2',
+  LANG: 'en_US.UTF-8',
+  LC_ALL: 'en_US.UTF-8',
+}
+
 async function isAuthenticated(token: string | undefined): Promise<boolean> {
   if (!token) return false
   try {
@@ -33,15 +49,7 @@ export const consoleRoutes: FastifyPluginAsync = async (app) => {
       cols: 120,
       rows: 30,
       cwd: '/opt',
-      env: {
-        ...process.env as Record<string, string>,
-        TERM: 'xterm-256color',
-        COLORTERM: 'truecolor',
-        HOME: '/root',
-        USER: 'root',
-        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/node_modules/.bin',
-        PM2_HOME: process.env.PM2_HOME ?? '/root/.pm2',
-      },
+      env: PTY_ENV,
     })
 
     ptyProcess.onData((data) => {
@@ -58,12 +66,16 @@ export const consoleRoutes: FastifyPluginAsync = async (app) => {
     })
 
     connection.socket.on('message', (raw) => {
+      if (Buffer.byteLength(raw as Buffer) > MAX_MSG_BYTES) return
       try {
         const msg = JSON.parse(raw.toString()) as { type: string; data?: string; cols?: number; rows?: number }
         if (msg.type === 'input' && msg.data !== undefined) {
           ptyProcess.write(msg.data)
         } else if (msg.type === 'resize' && msg.cols && msg.rows) {
-          ptyProcess.resize(Math.max(1, msg.cols), Math.max(1, msg.rows))
+          ptyProcess.resize(
+            Math.max(10, Math.min(500, Math.floor(msg.cols))),
+            Math.max(5, Math.min(200, Math.floor(msg.rows))),
+          )
         }
       } catch { /* ignore malformed messages */ }
     })

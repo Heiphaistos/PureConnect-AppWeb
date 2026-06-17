@@ -1,10 +1,12 @@
 import si from 'systeminformation'
+import os from 'node:os'
 import type { SystemStats } from '../types.js'
 
 let prevNetStats: Awaited<ReturnType<typeof si.networkStats>> | null = null
 let prevNetTime = Date.now()
 
 export async function getSystemStats(): Promise<SystemStats> {
+  const [l1, l5, l15] = os.loadavg()
   const [cpu, mem, disksRaw, netRaw, osInfo, load] = await Promise.all([
     si.cpu(),
     si.mem(),
@@ -52,9 +54,9 @@ export async function getSystemStats(): Promise<SystemStats> {
       cores: cpu.physicalCores,
       model: cpu.manufacturer + ' ' + cpu.brand,
       speed: cpu.speed,
-      load1: load.avgLoad ?? 0,
-      load5: 0,
-      load15: 0,
+      load1: l1,
+      load5: l5,
+      load15: l15,
     },
     memory: {
       total: mem.total,
