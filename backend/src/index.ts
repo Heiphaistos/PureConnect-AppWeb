@@ -39,9 +39,17 @@ const app = Fastify({
 await redis.connect()
 
 await app.register(helmet, {
+  // CSP volontairement désactivé : ce backend est une API JSON pure, il ne sert
+  // jamais de HTML. Les autres headers helmet (X-Content-Type-Options, X-Frame-Options,
+  // X-XSS-Protection, Referrer-Policy) restent actifs.
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // HSTS : forcer HTTPS pour les futures connexions (1 an, inclut sous-domaines).
+  // Activer uniquement si HTTPS est configuré (COOKIE_SECURE=true en prod).
+  hsts: process.env.COOKIE_SECURE === 'true'
+    ? { maxAge: 31536000, includeSubDomains: true }
+    : false,
 })
 
 await app.register(rateLimit, {
