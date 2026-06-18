@@ -14,6 +14,16 @@ function isPathAllowed(p: string): boolean {
 function resolveSafe(inputPath: string): string {
   const resolved = path.resolve('/', (inputPath || '/opt').replace(/^\/+/, ''))
   if (!isPathAllowed(resolved)) throw new Error(`Accès refusé : chemin hors des répertoires autorisés`)
+  // Symlink escape: si le chemin est un lien symbolique, vérifier que la cible réelle
+  // reste elle aussi dans les répertoires autorisés.
+  try {
+    const real = fs.realpathSync(resolved)
+    if (!isPathAllowed(real)) throw new Error(`Accès refusé : cible du lien symbolique hors des répertoires autorisés`)
+  } catch (e) {
+    // realpathSync échoue si le chemin n'existe pas encore (ex: écriture d'un nouveau fichier) —
+    // dans ce cas on laisse passer, le check sur le répertoire parent suffit.
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+  }
   return resolved
 }
 

@@ -84,7 +84,7 @@ await app.register(websocket, {
   },
 })
 
-app.get('/health', async () => ({ status: 'ok', ts: Date.now() }))
+app.get('/health', async () => ({ status: 'ok' }))
 
 await app.register(authRoutes, { prefix: '/api/auth' })
 await app.register(metricsRoutes, { prefix: '/api/metrics' })
