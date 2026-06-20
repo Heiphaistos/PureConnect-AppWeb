@@ -99,7 +99,7 @@ services:
       - PM2_HOME=/root/.pm2
       - SHELL=/bin/bash
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt:/opt:rw
       - /var/log:/var/log:ro
       - /etc:/etc:ro
