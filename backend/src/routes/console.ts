@@ -42,12 +42,12 @@ async function isAuthenticated(token: string | undefined): Promise<boolean> {
 }
 
 export const consoleRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/console', { websocket: true }, async (connection: { socket: WebSocket }, req) => {
+  app.get('/console', { websocket: true }, async (socket: WebSocket, req) => {
     const cookieToken = req.cookies?.['session']
 
     if (!(await isAuthenticated(cookieToken))) {
-      connection.socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
-      connection.socket.close(1008, 'Unauthorized')
+      socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
+      socket.close(1008, 'Unauthorized')
       return
     }
 
@@ -60,19 +60,19 @@ export const consoleRoutes: FastifyPluginAsync = async (app) => {
     })
 
     ptyProcess.onData((data) => {
-      if (connection.socket.readyState === 1) {
-        connection.socket.send(JSON.stringify({ type: 'data', data }))
+      if (socket.readyState === 1) {
+        socket.send(JSON.stringify({ type: 'data', data }))
       }
     })
 
     ptyProcess.onExit(({ exitCode }) => {
-      if (connection.socket.readyState === 1) {
-        connection.socket.send(JSON.stringify({ type: 'exit', code: exitCode }))
-        connection.socket.close()
+      if (socket.readyState === 1) {
+        socket.send(JSON.stringify({ type: 'exit', code: exitCode }))
+        socket.close()
       }
     })
 
-    connection.socket.on('message', (raw) => {
+    socket.on('message', (raw) => {
       if (Buffer.byteLength(raw as Buffer) > MAX_MSG_BYTES) return
       try {
         const msg = JSON.parse(raw.toString()) as { type: string; data?: string; cols?: number; rows?: number }
@@ -87,12 +87,7 @@ export const consoleRoutes: FastifyPluginAsync = async (app) => {
       } catch { /* ignore malformed messages */ }
     })
 
-    connection.socket.on('close', () => {
-      try { ptyProcess.kill() } catch { /* already dead */ }
-    })
-
-    connection.socket.on('error', () => {
-      try { ptyProcess.kill() } catch { /* already dead */ }
-    })
+    socket.on('close', () => { try { ptyProcess.kill() } catch { /* already dead */ } })
+    socket.on('error', () => { try { ptyProcess.kill() } catch { /* already dead */ } })
   })
 }

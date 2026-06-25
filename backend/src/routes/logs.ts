@@ -5,9 +5,7 @@ import { redis } from '../redis.js'
 import { streamContainerLogs } from '../collectors/docker.js'
 import { streamPm2Logs } from '../collectors/pm2.js'
 
-// Docker container IDs: full 64-char hex or short 12-char hex
 const CONTAINER_ID_RE = /^[a-f0-9]{12,64}$/i
-// PM2 process names: alphanumeric, dashes, underscores
 const PM2_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/
 
 async function isAuthenticated(token: string | undefined): Promise<boolean> {
@@ -26,20 +24,19 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { id: string } }>(
     '/logs/docker/:id',
     { websocket: true },
-    async (connection: { socket: WebSocket }, req) => {
-      // Auth via httpOnly cookie only — never accept token in URL (would appear in logs)
+    async (socket: WebSocket, req) => {
       const cookieToken = req.cookies?.['session']
 
       if (!(await isAuthenticated(cookieToken))) {
-        connection.socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
-        connection.socket.close(1008, 'Unauthorized')
+        socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
+        socket.close(1008, 'Unauthorized')
         return
       }
 
       const { id } = req.params
       if (!CONTAINER_ID_RE.test(id)) {
-        connection.socket.send(JSON.stringify({ type: 'error', message: 'Invalid container ID' }))
-        connection.socket.close(1008, 'Invalid container ID')
+        socket.send(JSON.stringify({ type: 'error', message: 'Invalid container ID' }))
+        socket.close(1008, 'Invalid container ID')
         return
       }
 
@@ -48,26 +45,19 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
       const stop = streamContainerLogs(
         id,
         (chunk) => {
-          if (!stopped && connection.socket.readyState === 1) {
-            connection.socket.send(JSON.stringify({ type: 'log', data: chunk }))
+          if (!stopped && socket.readyState === 1) {
+            socket.send(JSON.stringify({ type: 'log', data: chunk }))
           }
         },
         () => {
-          if (!stopped && connection.socket.readyState === 1) {
-            connection.socket.send(JSON.stringify({ type: 'end' }))
+          if (!stopped && socket.readyState === 1) {
+            socket.send(JSON.stringify({ type: 'end' }))
           }
         },
       )
 
-      connection.socket.on('close', () => {
-        stopped = true
-        stop()
-      })
-
-      connection.socket.on('error', () => {
-        stopped = true
-        stop()
-      })
+      socket.on('close', () => { stopped = true; stop() })
+      socket.on('error', () => { stopped = true; stop() })
     },
   )
 
@@ -75,19 +65,19 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { name: string } }>(
     '/logs/pm2/:name',
     { websocket: true },
-    async (connection: { socket: WebSocket }, req) => {
+    async (socket: WebSocket, req) => {
       const cookieToken = req.cookies?.['session']
 
       if (!(await isAuthenticated(cookieToken))) {
-        connection.socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
-        connection.socket.close(1008, 'Unauthorized')
+        socket.send(JSON.stringify({ type: 'error', message: 'Unauthorized' }))
+        socket.close(1008, 'Unauthorized')
         return
       }
 
       const { name } = req.params
       if (!PM2_NAME_RE.test(name)) {
-        connection.socket.send(JSON.stringify({ type: 'error', message: 'Invalid process name' }))
-        connection.socket.close(1008, 'Invalid process name')
+        socket.send(JSON.stringify({ type: 'error', message: 'Invalid process name' }))
+        socket.close(1008, 'Invalid process name')
         return
       }
 
@@ -97,28 +87,19 @@ export const logsRoutes: FastifyPluginAsync = async (app) => {
       streamPm2Logs(
         name,
         (line) => {
-          if (!stopped && connection.socket.readyState === 1) {
-            connection.socket.send(JSON.stringify({ type: 'log', data: line }))
+          if (!stopped && socket.readyState === 1) {
+            socket.send(JSON.stringify({ type: 'log', data: line }))
           }
         },
         () => {
-          if (!stopped && connection.socket.readyState === 1) {
-            connection.socket.send(JSON.stringify({ type: 'end' }))
+          if (!stopped && socket.readyState === 1) {
+            socket.send(JSON.stringify({ type: 'end' }))
           }
         },
-      ).then((stop) => {
-        stopFn = stop
-      })
+      ).then((stop) => { stopFn = stop })
 
-      connection.socket.on('close', () => {
-        stopped = true
-        stopFn?.()
-      })
-
-      connection.socket.on('error', () => {
-        stopped = true
-        stopFn?.()
-      })
+      socket.on('close', () => { stopped = true; stopFn?.() })
+      socket.on('error', () => { stopped = true; stopFn?.() })
     },
   )
 }
